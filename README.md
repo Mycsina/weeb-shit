@@ -6,18 +6,18 @@ Made for [Deluge](https://www.deluge-torrent.org/) and it's AutoAdd plugin. Simp
 
 ### Quick tutorial
 * Add series to a file named list.json (configurable)
-* Change the folder where to save and then run it with the default settings (1080p) 
-```bash
-python /weeb_shit/main.py
-```
+
+---
+* Configure the tasker() with the desired quality and save path. Default is 1080p and the current working directory
+* Run it
 #### or 
 
-Run it from the command line (--help for help)
+* Run it from the command line (--help for help)
 
 
 ## TODO
 
-* Argument parsing as ~~any~~ path changes require manual editing
+* ~~Argument parsing as ~~any~~ path changes require manual editing~~
 * Grouping of episodes per series on folder
 * Auto check up on new episodes (more elegant solution to having Deluge reject all duplicates)
 

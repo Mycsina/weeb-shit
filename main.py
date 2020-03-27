@@ -51,7 +51,7 @@ class HSubsAPI:
         return int(last_episode[1])
 
 
-def get_episodes(url, quality="3"):
+def get_episodes(url, quality="3", save_location=os.getcwd):
     """
     Call the function and give it the HorribleSubs url and the desired quality, both as string.
 
@@ -84,7 +84,7 @@ def get_episodes(url, quality="3"):
         IND += 1
         logging.debug(magnet)
         # Saving location
-        with open(f"/home/mycsina/Desktop/{IND}.magnet", "w+") as f:
+        with open(f"{save_location}/{IND}.magnet", "w+") as f:
             f.write(magnet)
 
 
@@ -117,8 +117,16 @@ def series_logger(show_id, url):
     show_default=True,
     help="First entry is for the quality (1: 480p, 2: 720p, 3: 1080p). Second is for which entry should be different (1 -> 1st entry, 3 -> 3rd entry",
 )
-def tasker(quality, individual_quality):
-    """Tasker program that loads HS links from a JSON file."""
+@click.option(
+    "-s",
+    "--save_location",
+    default=os.getcwd(),
+    type=str,
+    show_default=True,
+    help="Where to save the .magnet files to",
+)
+def tasker(quality=3, individual_quality=0, save_location=os.getcwd):
+    """Tasker program that loads HS links from a JSON file. And now a part-time argument handler."""
     with open("list.json", "r") as f:
         lista = json.load(f)
         individual_quality = list(individual_quality)
@@ -127,15 +135,14 @@ def tasker(quality, individual_quality):
             individual_quality[1] = int(individual_quality[1]) - 1
             logging.info(f"Working on: {entry}")
             logging.info(f"Working with custom quality type {individual_quality[0]}")
-            get_episodes(entry, individual_quality[0])
+            get_episodes(entry, individual_quality[0], save_location)
         else:
             individual_quality[1] = int(individual_quality[1]) - 1
             logging.info(f"Working on: {entry}")
-            get_episodes(entry, quality)
+            get_episodes(entry, quality, save_location)
     # Make sure that the torrent client has time to add all of the .magnet files
     time.sleep(5)
-    # Location to delete any leftovers from
-    dir_name = "/home/mycsina/Desktop/"
+    dir_name = save_location
     dir_list = os.listdir(dir_name)
     for item in dir_list:
         # This was made this way because Deluge was tagging the .magnet files as .magnet.invalid even when told to delete them
