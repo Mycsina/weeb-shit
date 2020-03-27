@@ -1,7 +1,7 @@
 import json
 import logging
-import re
 import os
+import re
 import time
 from datetime import datetime
 from math import ceil
@@ -15,10 +15,9 @@ time_format = f"%d-%m-%Y %H:%M:%S"
 IND = 0
 
 logging.basicConfig(
-    #filename=f"/logs/main-{datetime.now().strftime(time_format)}",
-    #filemode="w+",
-    #format=f"%(asctime) %(message)",
-    #datefmt=f"%d/%m/%Y %I:%M%S",
+    filename=f"/logs/main-{datetime.now().strftime(time_format)}",
+    format=f"%(asctime) %(message)",
+    datefmt=f"%d/%m/%Y %I:%M%S",
     level=logging.DEBUG,
 )
 
@@ -36,11 +35,7 @@ class HSubsAPI:
 
     def how_many_pages(self):
         """Call it and it retrieves the amount of pages the api has on said show."""
-        API_page = r.get(self.requestlink).content
-        soupy = BeautifulSoup(API_page, features="lxml").prettify()
-        last_episode = re.search('id="(\d*)-1080p"', soupy)
-        logging.debug(f"{last_episode}")
-        pages = int(last_episode[1]) / 12
+        pages = self.how_many_eps() / 12
         logging.debug(f"Number of pages: {pages}")
         return ceil(pages)
 
@@ -48,8 +43,8 @@ class HSubsAPI:
         """Call it and it retrieves the number of episodes released."""
         API_page = r.get(self.requestlink).content
         soupy = BeautifulSoup(API_page, features="lxml").prettify()
-        last_episode = re.search('id="(\d*)-1080p"', soupy)
-        logging.debug(f"{last_episode}")
+        last_episode = re.search(r'id="(\d*)-1080p"', soupy)
+        logging.debug(f"Most recent episode: {last_episode}")
         return int(last_episode[1])
 
 
@@ -65,7 +60,7 @@ def get_episodes(url, quality="3"):
     page = r.get(url).content
     tags = SoupStrainer("script")
     soup = BeautifulSoup(page, features="lxml", parse_only=tags).prettify()
-    show_id_group = re.search("var hs_showid = (\d*)", soup)
+    show_id_group = re.search(r"var hs_showid = (\d*)", soup)
     show_id = show_id_group[1]
     logging.debug(show_id)
     pages = HSubsAPI(show_id, 0).how_many_pages()
@@ -90,6 +85,7 @@ def get_episodes(url, quality="3"):
 
 
 def series_logger(show_id, url):
+    """Given the show_id and it's url it makes a basic log ({date} - {anime} - {ep})."""
     series_name = re.search("/shows/(.*)/", url)
     print(re.sub("-", " ", series_name[1]).title())
     cleaned_name = re.sub("-", " ", series_name[1]).title()
