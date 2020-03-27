@@ -1,16 +1,26 @@
 import json
 import logging
 import re
+import os
+import time
+from datetime import datetime
 from math import ceil
-import datetime
+
 
 from bs4 import BeautifulSoup, SoupStrainer
 
 import requests as r
 
 time_format = f"%d-%m-%Y %H:%M:%S"
+IND = 0
 
-logging.basicConfig(filename=f"/logs/main-{datetime.now().strftime(time_format)}", filemode="w", format=f"%(asctime) %(message)", datefmt=f"%d/%m/%Y %I:%M%S", level=logging.DEBUG)
+logging.basicConfig(
+    #filename=f"/logs/main-{datetime.now().strftime(time_format)}",
+    #filemode="w+",
+    #format=f"%(asctime) %(message)",
+    #datefmt=f"%d/%m/%Y %I:%M%S",
+    level=logging.DEBUG,
+)
 
 
 class HSubsAPI:
@@ -34,6 +44,14 @@ class HSubsAPI:
         logging.debug(f"Number of pages: {pages}")
         return ceil(pages)
 
+    def how_many_eps(self):
+        """Call it and it retrieves the number of episodes released."""
+        API_page = r.get(self.requestlink).content
+        soupy = BeautifulSoup(API_page, features="lxml").prettify()
+        last_episode = re.search('id="(\d*)-1080p"', soupy)
+        logging.debug(f"{last_episode}")
+        return int(last_episode[1])
+
 
 def get_episodes(url, quality="3"):
     """
@@ -41,8 +59,9 @@ def get_episodes(url, quality="3"):
 
     Quality is from 1 to 3 with 1 being 480p, 2 being 720p and 3 being 1080p.
     """
+    global IND
     quality_dict = {"1": "480p", "2": "720p", "3": "1080p"}
-    logging.debug(f"{quality_dict[quality_dict]}")
+    logging.debug(f"{quality_dict[quality]}")
     page = r.get(url).content
     tags = SoupStrainer("script")
     soup = BeautifulSoup(page, features="lxml", parse_only=tags).prettify()
@@ -52,6 +71,7 @@ def get_episodes(url, quality="3"):
     pages = HSubsAPI(show_id, 0).how_many_pages()
     logging.debug(pages)
     entries = []
+    series_logger(show_id, url)
     while pages != 0:
         pages -= 1
         series_api = BeautifulSoup(
@@ -62,20 +82,36 @@ def get_episodes(url, quality="3"):
         ):
             logging.debug(str(link) + "\n")
             entries.append(re.search('href="(.*)" title="Magnet', str(link))[1])
-    i = 0
     for magnet in entries:
-        i += 1
+        IND += 1
         logging.debug(magnet)
-        with open(f"/home/mycsina/Desktop/{i}.magnet", "w+") as f:
+        with open(f"/home/mycsina/Desktop/{IND}.magnet", "w+") as f:
             f.write(magnet)
 
 
+def series_logger(show_id, url):
+    series_name = re.search("/shows/(.*)/", url)
+    print(re.sub("-", " ", series_name[1]).title())
+    cleaned_name = re.sub("-", " ", series_name[1]).title()
+    show_ep = HSubsAPI(show_id, 0).how_many_eps()
+    with open("series-log.txt", "a+") as f:
+        entry = f"{datetime.now().strftime(time_format)} - {cleaned_name} - {show_ep}\n"
+        f.write(entry)
+
+
 def tasker():
+    """Tasker program that loads HS links from a JSON file."""
     with open("list.json", "r") as f:
         lista = json.load(f)
     for entry in lista:
         logging.debug(entry)
         get_episodes(entry)
+    time.sleep(10)
+    dir_name = "/home/mycsina/Desktop/"
+    dir_list = os.listdir(dir_name)
+    for item in dir_list:
+        if item.endswith(".invalid"):
+            os.remove(os.path.join(dir_name, item))
 
 
 tasker()
