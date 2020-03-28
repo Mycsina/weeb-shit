@@ -18,7 +18,7 @@ Made for [Deluge](https://www.deluge-torrent.org/) and it's AutoAdd plugin. Simp
 ## TODO
 
 * ~~Argument parsing as ~~any~~ path changes require manual editing~~
-* Grouping of episodes per series on folder
+* ~~Grouping of episodes per series on folder~~
 * Auto check up on new episodes (more elegant solution to having Deluge reject all duplicates)
 
 ### Goal

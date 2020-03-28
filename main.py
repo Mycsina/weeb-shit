@@ -5,7 +5,7 @@ import re
 import time
 from datetime import datetime
 from math import ceil
-
+from shutil import move
 
 from bs4 import BeautifulSoup, SoupStrainer
 
@@ -15,6 +15,7 @@ import requests as r
 
 time_format = f"%d-%m-%Y %H:%M:%S"
 IND = 0
+CLEANED_NAME = ""
 
 # Enable if you want to try to automatize this and wish to save logs
 logging.basicConfig(
@@ -44,8 +45,8 @@ class HSubsAPI:
 
     def how_many_eps(self):
         """Call it and it retrieves the number of episodes released."""
-        API_page = r.get(self.requestlink).content
-        soupy = BeautifulSoup(API_page, features="lxml").prettify()
+        api_page = r.get(self.requestlink).content
+        soupy = BeautifulSoup(api_page, features="lxml").prettify()
         last_episode = re.search(r'id="(\d*)-1080p"', soupy)
         logging.debug(f"Most recent episode: {last_episode}")
         return int(last_episode[1])
@@ -58,6 +59,7 @@ def get_episodes(url, quality="3", save_location=os.getcwd):
     Quality is from 1 to 3 with 1 being 480p, 2 being 720p and 3 being 1080p.
     """
     global IND
+    global CLEANED_NAME
     quality_dict = {"1": "480p", "2": "720p", "3": "1080p"}
     logging.debug(f"{quality_dict[quality]}")
     page = r.get(url).content
@@ -84,19 +86,34 @@ def get_episodes(url, quality="3", save_location=os.getcwd):
         IND += 1
         logging.debug(magnet)
         # Saving location
-        with open(f"{save_location}/{IND}.magnet", "w+") as f:
+        with open(f"/{save_location}/{CLEANED_NAME}/{IND}.magnet", "w+") as f:
             f.write(magnet)
 
 
 def series_logger(show_id, url):
     """Given the show_id and it's url, it makes a basic log ({date} - {anime} - {ep})."""
-    series_name = re.search("/shows/(.*)/", url)
-    logging.info(f'{re.sub("-", " ", series_name[1]).title()} is done')
-    cleaned_name = re.sub("-", " ", series_name[1]).title()
+    global CLEANED_NAME
+    series_name = re.search(r"/shows/(.*)/", url)
+    logging.info(f'{re.sub(r"-", r" ", series_name[1]).title()} is done')
+    CLEANED_NAME = re.sub(r"-", r" ", series_name[1]).title()
     show_ep = HSubsAPI(show_id, 0).how_many_eps()
+    entry = f"{datetime.now().strftime(time_format)} - {CLEANED_NAME} - {show_ep}\n"
     with open("series-log.txt", "a+") as f:
-        entry = f"{datetime.now().strftime(time_format)} - {cleaned_name} - {show_ep}\n"
         f.write(entry)
+
+
+def organizer(src_path, save_location):
+    dir_list = os.listdir(src_path)
+    for entry in dir_list:
+        if re.search(r"\[HorribleSubs\] (.*) -", entry):
+            series_name = re.search(r"\[HorribleSubs\] (.*) -", entry)[1]
+            try:
+                os.mkdir(f"{save_location}{series_name}")
+            except OSError:
+                pass
+            move(f"{src_path}/{entry}", f"{save_location}{series_name}/{entry}")
+        else:
+            pass
 
 
 @click.command()
@@ -125,7 +142,7 @@ def series_logger(show_id, url):
     show_default=True,
     help="Where to save the .magnet files to",
 )
-def tasker(quality=3, individual_quality=0, save_location=os.getcwd):
+def tasker(quality="3", individual_quality="0", save_location=os.getcwd):
     """Tasker program that loads HS links from a JSON file. And now a part-time argument handler."""
     with open("list.json", "r") as f:
         lista = json.load(f)
@@ -141,7 +158,7 @@ def tasker(quality=3, individual_quality=0, save_location=os.getcwd):
             logging.info(f"Working on: {entry}")
             get_episodes(entry, quality, save_location)
     # Make sure that the torrent client has time to add all of the .magnet files
-    time.sleep(5)
+    time.sleep(10)
     dir_name = save_location
     dir_list = os.listdir(dir_name)
     for item in dir_list:
@@ -150,4 +167,5 @@ def tasker(quality=3, individual_quality=0, save_location=os.getcwd):
             os.remove(os.path.join(dir_name, item))
 
 
-tasker()
+# tasker()
+organizer("/home/mycsina/Desktop/", "/home/mycsina/Desktop/")
