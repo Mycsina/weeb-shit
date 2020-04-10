@@ -143,7 +143,7 @@ def organizer(src_path, save_location):
     default=CWD,
     type=str,
     show_default=True,
-    help="Where to save the .magnet files to",
+    help="Where to save the .magnet files to; if used with -o flag, sets the folder in which series folders will be created.",
 )
 @click.option(
     "-o",
@@ -151,7 +151,7 @@ def organizer(src_path, save_location):
     is_flag=True,
     default=False,
     show_default=True,
-    help="If the script should try to sort any loose HorribleSubs episodes per anime into individual folders. Running it with this option won't download the .magnet files",
+    help="If the script should try to sort any loose HorribleSubs episodes per anime into individual folders. Run it from the folder you want to get sorted and use the -s flag to customize where should the files go. Running it with this option won't download the .magnet files",
 )
 def tasker(quality="3", individual_quality="0", save_location=CWD, organizer=False):
     """Tasker program that loads HS links from a JSON file. And now a part-time argument handler."""
