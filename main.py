@@ -16,6 +16,7 @@ import requests as r
 time_format = f"%d-%m-%Y %H:%M:%S"
 IND = 0
 CLEANED_NAME = ""
+CWD = os.getcwd()
 
 # Enable if you want to try to automatize this and wish to save logs
 logging.basicConfig(
@@ -52,7 +53,7 @@ class HSubsAPI:
         return int(last_episode[1])
 
 
-def get_episodes(url, quality="3", save_location=os.getcwd):
+def get_episodes(url, quality="3", save_location=CWD):
     """
     Call the function and give it the HorribleSubs url and the desired quality, both as string.
 
@@ -60,6 +61,7 @@ def get_episodes(url, quality="3", save_location=os.getcwd):
     """
     global IND
     global CLEANED_NAME
+    global CWD
     quality_dict = {"1": "480p", "2": "720p", "3": "1080p"}
     logging.debug(f"{quality_dict[quality]}")
     page = r.get(url).content
@@ -86,7 +88,7 @@ def get_episodes(url, quality="3", save_location=os.getcwd):
         IND += 1
         logging.debug(magnet)
         # Saving location
-        with open(f"/{save_location}/{CLEANED_NAME}/{IND}.magnet", "w+") as f:
+        with open(f"{save_location}/{IND}.magnet", "w+") as f:
             f.write(magnet)
 
 
@@ -103,15 +105,16 @@ def series_logger(show_id, url):
 
 
 def organizer(src_path, save_location):
+    """Sorts downloaded HorribleSubs episodes per anime in folders. First argument is where to search in, second is the desired save location."""
     dir_list = os.listdir(src_path)
     for entry in dir_list:
         if re.search(r"\[HorribleSubs\] (.*) -", entry):
             series_name = re.search(r"\[HorribleSubs\] (.*) -", entry)[1]
             try:
-                os.mkdir(f"{save_location}{series_name}")
+                os.mkdir(f"{save_location}/{series_name}")
             except OSError:
                 pass
-            move(f"{src_path}/{entry}", f"{save_location}{series_name}/{entry}")
+            move(f"{src_path}/{entry}", f"{save_location}/{series_name}/{entry}")
         else:
             pass
 
@@ -137,35 +140,49 @@ def organizer(src_path, save_location):
 @click.option(
     "-s",
     "--save_location",
-    default=os.getcwd(),
+    default=CWD,
     type=str,
     show_default=True,
     help="Where to save the .magnet files to",
 )
-def tasker(quality="3", individual_quality="0", save_location=os.getcwd):
+@click.option(
+    "-o",
+    "--organizer",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="If the script should try to sort any loose HorribleSubs episodes per anime into individual folders. Running it with this option won't download the .magnet files",
+)
+def tasker(quality="3", individual_quality="0", save_location=CWD, organizer=False):
     """Tasker program that loads HS links from a JSON file. And now a part-time argument handler."""
-    with open("list.json", "r") as f:
-        lista = json.load(f)
-        individual_quality = list(individual_quality)
-    for entry in lista:
-        if int(individual_quality[1]) == 1:
-            individual_quality[1] = int(individual_quality[1]) - 1
-            logging.info(f"Working on: {entry}")
-            logging.info(f"Working with custom quality type {individual_quality[0]}")
-            get_episodes(entry, individual_quality[0], save_location)
-        else:
-            individual_quality[1] = int(individual_quality[1]) - 1
-            logging.info(f"Working on: {entry}")
-            get_episodes(entry, quality, save_location)
-    # Make sure that the torrent client has time to add all of the .magnet files
-    time.sleep(10)
-    dir_name = save_location
-    dir_list = os.listdir(dir_name)
-    for item in dir_list:
-        # This was made this way because Deluge was tagging the .magnet files as .magnet.invalid even when told to delete them
-        if item.endswith(".invalid"):
-            os.remove(os.path.join(dir_name, item))
+    if organizer:
+        organizer(CWD, save_location)
+    else:
+        with open("list.json", "r") as f:
+            lista = json.load(f)
+            individual_quality = list(individual_quality)
+        for entry in lista:
+            if int(individual_quality[1]) == 1:
+                individual_quality[1] = int(individual_quality[1]) - 1
+                logging.info(f"Working on: {entry}")
+                logging.info(
+                    f"Working with custom quality type {individual_quality[0]}"
+                )
+                get_episodes(entry, individual_quality[0], save_location)
+            else:
+                individual_quality[1] = int(individual_quality[1]) - 1
+                logging.info(f"Working on: {entry}")
+                get_episodes(entry, quality, save_location)
+        # Make sure that the torrent client has time to add all of the .magnet files
+        time.sleep(IND / 4)
+        dir_name = save_location
+        dir_list = os.listdir(dir_name)
+        for item in dir_list:
+            # This was made this way because Deluge was tagging the .magnet files as .magnet.invalid even when told to delete them
+            if item.endswith(".invalid"):
+                os.remove(os.path.join(dir_name, item))
 
 
-# tasker()
-organizer("/home/mycsina/Desktop/", "/home/mycsina/Desktop/")
+tasker()
+# organizer("/home/mycsina/Desktop/", "/home/mycsina/Desktop/")
+# print(CWD)
