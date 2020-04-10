@@ -66,7 +66,7 @@ def get_episodes(url, quality="3", save_location=CWD):
     logging.debug(f"{quality_dict[quality]}")
     page = r.get(url).content
     tags = SoupStrainer("script")
-    soup = BeautifulSoup(page, features="lxml", parse_only=tags).prettify()
+    soup = BeautifulSoup(page, features="lxml", parse_only=tags)
     show_id_group = re.search(r"var hs_showid = (\d*)", soup)
     show_id = show_id_group[1]
     logging.debug(show_id)
@@ -110,6 +110,7 @@ def organizer(src_path, save_location):
     for entry in dir_list:
         if re.search(r"\[HorribleSubs\] (.*) -", entry):
             series_name = re.search(r"\[HorribleSubs\] (.*) -", entry)[1]
+            logging.debug(series_name)
             try:
                 os.mkdir(f"{save_location}/{series_name}")
             except OSError:
@@ -153,7 +154,17 @@ def organizer(src_path, save_location):
     show_default=True,
     help="If the script should try to sort any loose HorribleSubs episodes per anime into individual folders. Run it from the folder you want to get sorted and use the -s flag to customize where should the files go. Running it with this option won't download the .magnet files",
 )
-def tasker(quality="3", individual_quality="0", save_location=CWD, organizer=False):
+@click.option(
+    "-c",
+    "--clean",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Cleans the list.json file after creating all .magnet files",
+)
+def tasker(
+    quality="3", individual_quality="0", save_location=CWD, organizer=False, clean=False
+):
     """Tasker program that loads HS links from a JSON file. And now a part-time argument handler."""
     if organizer:
         organizer(CWD, save_location)
@@ -174,15 +185,19 @@ def tasker(quality="3", individual_quality="0", save_location=CWD, organizer=Fal
                 logging.info(f"Working on: {entry}")
                 get_episodes(entry, quality, save_location)
         # Make sure that the torrent client has time to add all of the .magnet files
-        time.sleep(IND / 4)
+        time.sleep(IND / 5)
         dir_name = save_location
         dir_list = os.listdir(dir_name)
         for item in dir_list:
             # This was made this way because Deluge was tagging the .magnet files as .magnet.invalid even when told to delete them
             if item.endswith(".invalid"):
                 os.remove(os.path.join(dir_name, item))
+        if clean:
+            with open("list.json", "w+") as f:
+                json.dump([], f)
+                logging.info("Job finished!")
+        else:
+            logging.info("Job finished!")
 
 
 tasker()
-# organizer("/home/mycsina/Desktop/", "/home/mycsina/Desktop/")
-# print(CWD)
