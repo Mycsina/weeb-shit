@@ -66,7 +66,7 @@ def get_episodes(url, quality="3", save_location=CWD):
     logging.debug(f"{quality_dict[quality]}")
     page = r.get(url).content
     tags = SoupStrainer("script")
-    soup = BeautifulSoup(page, features="lxml", parse_only=tags)
+    soup = BeautifulSoup(page, features="lxml", parse_only=tags).prettify()
     show_id_group = re.search(r"var hs_showid = (\d*)", soup)
     show_id = show_id_group[1]
     logging.debug(show_id)
@@ -117,7 +117,7 @@ def organizer(src_path, save_location):
                 pass
             move(f"{src_path}/{entry}", f"{save_location}/{series_name}/{entry}")
         else:
-            pass
+            logging.debug(f"This entry:{entry} ain't it, chief.")
 
 
 @click.command()
@@ -148,7 +148,7 @@ def organizer(src_path, save_location):
 )
 @click.option(
     "-o",
-    "--organizer",
+    "--organize",
     is_flag=True,
     default=False,
     show_default=True,
@@ -163,10 +163,10 @@ def organizer(src_path, save_location):
     help="Cleans the list.json file after creating all .magnet files",
 )
 def tasker(
-    quality="3", individual_quality="0", save_location=CWD, organizer=False, clean=False
+    quality="3", individual_quality="0", save_location=CWD, organize=False, clean=False
 ):
     """Tasker program that loads HS links from a JSON file. And now a part-time argument handler."""
-    if organizer:
+    if organize:
         organizer(CWD, save_location)
     else:
         with open("list.json", "r") as f:
