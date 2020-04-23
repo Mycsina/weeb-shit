@@ -17,14 +17,20 @@ time_format = f"%d-%m-%Y %H:%M:%S"
 IND = 0
 CLEANED_NAME = ""
 CWD = os.getcwd()
+__location__ = os.path.realpath(
+    os.path.join(os.getcwd(), os.path.dirname(__file__)))
+logging_dict = {1: logging.DEBUG, 2: logging.INFO, 3: logging.CRITICAL}
+
 
 # Enable if you want to try to automatize this and wish to save logs
-logging.basicConfig(
-    # filename=f"/logs/main-{datetime.now().strftime(time_format)}",
-    # format=f"%(asctime) %(message)",
-    # datefmt=f"%d/%m/%Y %I:%M%S",
-    level=logging.INFO,
-)
+def mod_logging(level_dict):
+    """Just modified logging."""
+    logging.basicConfig(
+        # filename=f"/logs/main-{datetime.now().strftime(time_format)}",
+        # format=f"%(asctime) %(message)",
+        # datefmt=time_format,
+        level=level_dict
+    )
 
 
 class HSubsAPI:
@@ -49,7 +55,7 @@ class HSubsAPI:
         api_page = r.get(self.requestlink).content
         soupy = BeautifulSoup(api_page, features="lxml").prettify()
         last_episode = re.search(r'id="(\d*)-1080p"', soupy)
-        logging.debug(f"Most recent episode: {last_episode}")
+        logging.debug(f"Most recent episode: {last_episode[1]}")
         return int(last_episode[1])
 
 
@@ -86,7 +92,7 @@ def get_episodes(url, quality="3", save_location=CWD):
             entries.append(re.search('href="(.*)" title="Magnet', str(link))[1])
     for magnet in entries:
         IND += 1
-        logging.debug(magnet)
+        logging.debug(f"Magnet link: {magnet}")
         # Saving location
         with open(f"{save_location}/{IND}.magnet", "w+") as f:
             f.write(magnet)
@@ -100,7 +106,7 @@ def series_logger(show_id, url):
     CLEANED_NAME = re.sub(r"-", r" ", series_name[1]).title()
     show_ep = HSubsAPI(show_id, 0).how_many_eps()
     entry = f"{datetime.now().strftime(time_format)} - {CLEANED_NAME} - {show_ep}\n"
-    with open("series-log.txt", "a+") as f:
+    with open(os.path.join(__location__, "series-log.txt"), "a+") as f:
         f.write(entry)
 
 
@@ -116,6 +122,7 @@ def organizer(src_path, save_location):
             except OSError:
                 pass
             move(f"{src_path}/{entry}", f"{save_location}/{series_name}/{entry}")
+            logging.debug(f"Moved {src_path}/{entry} to {save_location}/{series_name}/{entry}")
         else:
             logging.debug(f"This entry:{entry} ain't it, chief.")
 
@@ -140,7 +147,7 @@ def organizer(src_path, save_location):
 )
 @click.option(
     "-s",
-    "--save_location",
+    "--save-location",
     default=CWD,
     type=str,
     show_default=True,
@@ -162,14 +169,22 @@ def organizer(src_path, save_location):
     show_default=True,
     help="Cleans the list.json file after creating all .magnet files",
 )
+@click.option(
+    "-l",
+    "--logging-level",
+    default=2,
+    show_default=True,
+    help="Default logging level is info (2), can be set to debug (1) to make the logging more verbose. 3 will not log any information, with exception of critical errors"
+)
 def tasker(
-    quality="3", individual_quality="0", save_location=CWD, organize=False, clean=False
+    quality="3", individual_quality="0", save_location=CWD, organize=False, clean=False, logging_level=2
 ):
     """Tasker program that loads HS links from a JSON file. And now a part-time argument handler."""
+    mod_logging(logging_dict[logging_level])
     if organize:
         organizer(CWD, save_location)
     else:
-        with open("list.json", "r") as f:
+        with open(os.path.join(__location__, "list.json"), "r") as f:
             lista = json.load(f)
             individual_quality = list(individual_quality)
         for entry in lista:
@@ -193,7 +208,7 @@ def tasker(
             if item.endswith(".invalid"):
                 os.remove(os.path.join(dir_name, item))
         if clean:
-            with open("list.json", "w+") as f:
+            with open(os.path.join(__location__, "list.json"), "w+") as f:
                 json.dump([], f)
                 logging.info("Job finished!")
         else:
