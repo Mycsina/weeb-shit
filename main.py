@@ -169,6 +169,19 @@ def tasker(quality, individual_quality, save_location):
             os.remove(os.path.join(save_location, item))
 
 
+def hsubs_bk():
+    """Puts all HSubs shows into the queue file to be downloaded."""
+    page = r.get("https://horriblesubs.info/shows/")
+    steamed = BeautifulSoup(page.content, features="lxml", parse_only=SoupStrainer("a"))
+    steamed.find(title="All shows").decompose()
+    anime_list = []
+    for entry in steamed.find_all(href=re.compile(r"/shows/")):
+        anime_list.append(re.search(r"<a href=\"(.*)\" ", str(entry))[1])
+    anime_list = [f"https://horriblesubs.info{entry}" for entry in anime_list]
+    with open("list.json", "w+") as f:
+        json.dump(anime_list, f)
+
+
 @click.command()
 @click.option(
     "-Q",
@@ -207,17 +220,24 @@ def tasker(quality, individual_quality, save_location):
     "-c", "--clean", is_flag=True, default=False, show_default=True, help="Cleans all created files",
 )
 @click.option(
+    "-b", "--backup", is_flag=True, default=False, show_default=True, help="Puts all HSubs shows into the queue file"
+)
+@click.option(
     "-l",
     "--logging-level",
     default=2,
     show_default=True,
     help="Default logging level is info (2), can be set to debug (1) to make the logging more verbose. 3 will not log any information, with exception of critical errors",
 )
-def argparser(quality="3", individual_quality=None, save_location=CWD, organize=False, clean=False, logging_level=2):
+def argparser(
+    quality="3", individual_quality=None, save_location=CWD, organize=False, clean=False, logging_level=2, backup=False
+):
     """Simple argument parser for the click module."""
     logging_dict = {1: logging.DEBUG, 2: logging.INFO, 3: logging.CRITICAL}
     individual_quality = list(individual_quality)
     mod_logging(logging_dict[logging_level])
+    if backup:
+        hsubs_bk()
     if organize:
         organizer(CWD, save_location)
     else:
@@ -238,5 +258,6 @@ def argparser(quality="3", individual_quality=None, save_location=CWD, organize=
             logging.info("Job finished!")
 
 
+# hsubs_bk()
 if __name__ == "__main__":
     argparser()
