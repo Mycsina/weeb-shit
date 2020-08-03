@@ -3,5 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 .vscode/
+*.json
+*.txt
 list.json
-series-log.txt

@@ -14,49 +14,68 @@ import click
 import requests as r
 
 time_format = f"%d-%m-%Y %H:%M:%S"
-IND = 0
-CLEANED_NAME = ""
+count = 0
 CWD = os.getcwd()
+__LOCATION__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+
 
 # Enable if you want to try to automatize this and wish to save logs
-logging.basicConfig(
-    # filename=f"/logs/main-{datetime.now().strftime(time_format)}",
-    # format=f"%(asctime) %(message)",
-    # datefmt=f"%d/%m/%Y %I:%M%S",
-    level=logging.INFO,
-)
+def mod_logging(logging_level):
+    """Just modified logging."""
+    logging.basicConfig(
+        # filename=f"/logs/main-{datetime.now().strftime(time_format)}",
+        # format=f"%(asctime) %(message)",
+        # datefmt=time_format,
+        level=logging_level
+    )
 
 
 class HSubsAPI:
-    """Class which provides methods to find out how many pages and episodes the given HSubs show has."""
+    """
+    Class for HorribleSubs.info anime shows' API links.
 
-    def __init__(self, show_id, page):
+    | Attributes |
+
+    requestlink_prototype (str/URL) = Links towards the shows' API page. Indicate which page you wish to access by adding the number to the string.
+
+    | Methods |
+
+    how_many_pages\n
+    how_many_eps
+    """
+
+    def __init__(self, show_id):
         """
-        Build a HSubsAPI object with the requestlink attribute which points to the HorribleSubs API.
+        Constructor function for the HSubsAPI class.
 
-        It has the how_many_pages() method which gives back the amount of API pages there are. The how_many_eps() is clear enough.
-        Show_id is their internal ID, page is the page number you want to access.
+        | Parameters |
 
-        |Args|
-            - show_id: The HorribleSubs API show_id
-            - page: Which page you want to access
+        show_id (str) = HSubs internal show ID. Look for "var hs_showid =" on the show's page source code
         """
-        self.requestlink = f"https://horriblesubs.info/api.php?method=getshows&type=show&showid={show_id}&nextid={page}"
-        logging.debug(f"Request link: {self.requestlink}")
+        self.requestlink_prototype = (
+            f"https://horriblesubs.info/api.php?method=getshows&type=show&showid={show_id}&nextid="
+        )
+        logging.debug(f"Request link: {self.requestlink_prototype}")
 
-    def how_many_pages(self):
-        """Retrieves the amount of pages the api has on said show."""
-        pages = self.how_many_eps() / 12
-        logging.debug(f"Number of pages: {pages}")
-        return ceil(pages)
-
-    def how_many_eps(self):
-        """Retrieves the number of episodes released."""
-        api_page = r.get(self.requestlink).content
-        soupy = BeautifulSoup(api_page, features="lxml").prettify()
-        last_episode = re.search(r'id="(\d*)-1080p"', soupy)
-        logging.debug(f"Most recent episode: {last_episode}")
-        return int(last_episode[1])
+    def episode_listing(self):
+        """Returns the episodes released."""
+        page = -1
+        episodes = []
+        while True:
+            page += 1
+            actual_request_link = f"{self.requestlink_prototype}{page}"
+            if (
+                re.search(r"DONE", BeautifulSoup(r.get(actual_request_link).content, features="lxml").prettify())
+                is None
+            ):
+                for episode in re.findall(
+                    r'id="(\d*-?\d*)-1080p"',
+                    BeautifulSoup(r.get(actual_request_link).content, features="lxml").prettify(),
+                ):
+                    episodes.append(episode)
+            else:
+                break
+        return episodes
 
 
 def get_episodes(url, quality="3", save_location=CWD):
@@ -70,36 +89,32 @@ def get_episodes(url, quality="3", save_location=CWD):
         - quality: 1 - 480, 2 - 720, 3 - 1080
         - save_location: String (Default = Current working directory)
     """
-    global IND
-    global CLEANED_NAME
+    global count
     global CWD
     quality_dict = {"1": "480p", "2": "720p", "3": "1080p"}
     logging.debug(f"{quality_dict[quality]}")
-    page = r.get(url).content
-    tags = SoupStrainer("script")
-    soup = BeautifulSoup(page, features="lxml", parse_only=tags)
-    show_id_group = re.search(r"var hs_showid = (\d*)", soup)
-    show_id = show_id_group[1]
+    soup = BeautifulSoup(r.get(url).content, features="lxml", parse_only=SoupStrainer("script")).prettify()
+    show_id = re.search(r"var hs_showid = (\d*)", soup)[1]
     logging.debug(show_id)
-    pages = HSubsAPI(show_id, 0).how_many_pages()
-    logging.debug(pages)
+    ep_number = len(HSubsAPI(show_id).episode_listing())
+    logging.debug(ep_number)
     entries = []
     series_logger(show_id, url)
-    while pages != 0:
-        pages -= 1
-        series_api = BeautifulSoup(
-            r.get(HSubsAPI(show_id, pages).requestlink).content, features="lxml"
+    page_count = ceil(ep_number / 12)
+    while page_count != 0:
+        page_count -= 1
+        page = BeautifulSoup(
+            r.get(f"{HSubsAPI(show_id).requestlink_prototype}{page_count}").content,
+            features="lxml",
+            parse_only=SoupStrainer("div"),
         )
-        for link in series_api.find_all(
-            "div", f"rls-link link-{quality_dict[quality]}"
-        ):
+        for link in page.find_all(class_=f"rls-link link-{quality_dict[quality]}"):
             logging.debug(str(link) + "\n")
             entries.append(re.search('href="(.*)" title="Magnet', str(link))[1])
     for magnet in entries:
-        IND += 1
-        logging.debug(magnet)
+        count += 1
         # Saving location
-        with open(f"{save_location}/{IND}.magnet", "w+") as f:
+        with open(f"{save_location}/{count}.magnet", "w+") as f:
             f.write(magnet)
 
 
@@ -112,11 +127,12 @@ def series_logger(show_id, url):
     """
     global CLEANED_NAME
     series_name = re.search(r"/shows/(.*)/", url)
-    logging.info(f'{re.sub(r"-", r" ", series_name[1]).title()} is done')
-    CLEANED_NAME = re.sub(r"-", r" ", series_name[1]).title()
-    show_ep = HSubsAPI(show_id, 0).how_many_eps()
-    entry = f"{datetime.now().strftime(time_format)} - {CLEANED_NAME} - {show_ep}\n"
-    with open("series-log.txt", "a+") as f:
+    cleaned_name = re.sub(r"-", r" ", series_name[1]).title()
+    episode_listing = HSubsAPI(show_id).episode_listing()
+    logging.info(f"Most recent episode: {episode_listing[0]} | Total number of episodes {len(episode_listing)}")
+    logging.info(f"{cleaned_name} is done")
+    entry = f"{datetime.now().strftime(time_format)} - {cleaned_name} - {episode_listing[0]} - Downloaded {len(episode_listing)} episodes\n"
+    with open(os.path.join(__LOCATION__, "series-log.txt"), "a+") as f:
         f.write(entry)
 
 
@@ -137,8 +153,50 @@ def organizer(src_path, save_location):
             except OSError:
                 pass
             move(f"{src_path}/{entry}", f"{save_location}/{series_name}/{entry}")
+            logging.debug(f"Moved {src_path}/{entry} to {save_location}/{series_name}/{entry}")
         else:
-            pass
+            logging.debug(f"This entry {entry} ain't it, chief.")
+
+
+def tasker(quality, individual_quality, save_location):
+    """Loads links from set file."""
+    try:
+        with open(os.path.join(__LOCATION__, "list.json"), "r") as f:
+            lista = json.load(f)
+    except FileNotFoundError:
+        with open(os.path.join(__LOCATION__, "list.json"), "w+") as f:
+            json.dump([], f)
+        raise UnboundLocalError("Run again")
+    for entry in lista:
+        if int(individual_quality[1]) == 1:
+            individual_quality[1] = int(individual_quality[1]) - 1
+            logging.info(f"Working on: {entry}")
+            logging.info(f"Working with custom quality type {individual_quality[0]}")
+            get_episodes(entry, individual_quality[0], save_location)
+        else:
+            individual_quality[1] = int(individual_quality[1]) - 1
+            logging.info(f"Working on: {entry}")
+            get_episodes(entry, quality, save_location)
+        # Make sure that the torrent client has time to add all of the .magnet files
+    time.sleep(count / 5)
+    for item in os.listdir(save_location):
+        # This was made this way because Deluge was tagging the .magnet files as .magnet.invalid even when told to delete them
+        if item.endswith(".invalid"):
+            logging.debug(f"Removed {os.path.join(save_location, item)}")
+            os.remove(os.path.join(save_location, item))
+
+
+def hsubs_bk():
+    """Puts all HSubs shows into the queue file to be downloaded."""
+    page = r.get("https://horriblesubs.info/shows/")
+    steamed = BeautifulSoup(page.content, features="lxml", parse_only=SoupStrainer("a"))
+    steamed.find(title="All shows").decompose()
+    anime_list = []
+    for entry in steamed.find_all(href=re.compile(r"/shows/")):
+        anime_list.append(re.search(r"<a href=\"(.*)\" ", str(entry))[1])
+    anime_list = [f"https://horriblesubs.info{entry}" for entry in anime_list]
+    with open("list.json", "w+") as f:
+        json.dump(anime_list, f)
 
 
 @click.command()
@@ -157,68 +215,66 @@ def organizer(src_path, save_location):
     default=("3", "0"),
     type=str,
     show_default=True,
-    help="First entry is for the quality (1: 480p, 2: 720p, 3: 1080p). Second is for which entry should be different (1 -> 1st entry, 3 -> 3rd entry",
+    help="First entry is for the quality (1: 480p, 2: 720p, 3: 1080p). Second is for which entry should be different (1 -> 1st entry, 3 -> 3rd entry)",
 )
 @click.option(
     "-s",
-    "--save_location",
+    "--save-location",
     default=CWD,
     type=str,
     show_default=True,
     help="Where to save the .magnet files to; if used with -o flag, sets the folder in which series folders will be created.",
 )
 @click.option(
-    "-o",
-    "--organizer",
+    "-O",
+    "--organize",
     is_flag=True,
     default=False,
     show_default=True,
-    help="If the script should try to sort any loose HorribleSubs episodes per anime into individual folders. Run it from the folder you want to get sorted and use the -s flag to customize where should the files go. Running it with this option won't download the .magnet files",
+    help="If the script should try to sort any loose HorribleSubs episodes per anime into countividual folders. Run it from the folder you want to get sorted and use the -s flag to customize where should the files go. Running it with this option won't download the .magnet files",
 )
 @click.option(
-    "-c",
-    "--clean",
-    is_flag=True,
-    default=False,
-    show_default=True,
-    help="Cleans the list.json file after creating all .magnet files",
+    "-c", "--clean", is_flag=True, default=False, show_default=True, help="Cleans all created files",
 )
-def tasker(
-    quality="3", individual_quality="0", save_location=CWD, organizer=False, clean=False
+@click.option(
+    "-b", "--backup", is_flag=True, default=False, show_default=True, help="Puts all HSubs shows into the queue file"
+)
+@click.option(
+    "-l",
+    "--logging-level",
+    default=2,
+    show_default=True,
+    help="Default logging level is info (2), can be set to debug (1) to make the logging more verbose. 3 will not log any information, with exception of critical errors",
+)
+def argparser(
+    quality="3", individual_quality=None, save_location=CWD, organize=False, clean=False, logging_level=2, backup=False
 ):
-    """Tasker program that loads HS links from a JSON file. And now a part-time argument handler."""
-    if organizer:
+    """Simple argument parser for the click module."""
+    logging_dict = {1: logging.DEBUG, 2: logging.INFO, 3: logging.CRITICAL}
+    individual_quality = list(individual_quality)
+    mod_logging(logging_dict[logging_level])
+    if backup:
+        hsubs_bk()
+    if organize:
         organizer(CWD, save_location)
     else:
-        with open("list.json", "r") as f:
-            lista = json.load(f)
-            individual_quality = list(individual_quality)
-        for entry in lista:
-            if int(individual_quality[1]) == 1:
-                individual_quality[1] = int(individual_quality[1]) - 1
-                logging.info(f"Working on: {entry}")
-                logging.info(
-                    f"Working with custom quality type {individual_quality[0]}"
-                )
-                get_episodes(entry, individual_quality[0], save_location)
-            else:
-                individual_quality[1] = int(individual_quality[1]) - 1
-                logging.info(f"Working on: {entry}")
-                get_episodes(entry, quality, save_location)
-        # Make sure that the torrent client has time to add all of the .magnet files
-        time.sleep(IND / 5)
-        dir_name = save_location
-        dir_list = os.listdir(dir_name)
-        for item in dir_list:
-            # This was made this way because Deluge was tagging the .magnet files as .magnet.invalid even when told to delete them
-            if item.endswith(".invalid"):
-                os.remove(os.path.join(dir_name, item))
+        tasker(quality, individual_quality, save_location)
         if clean:
-            with open("list.json", "w+") as f:
+            with open(os.path.join(__LOCATION__, "list.json"), "w+") as f:
                 json.dump([], f)
                 logging.info("Job finished!")
+            for item in os.listdir(save_location):
+                if item.endswith(".magnet"):
+                    logging.debug(f"Removed {os.path.join(save_location, item)}")
+                    os.remove(os.path.join(save_location, item))
+            try:
+                os.remove("series-log.txt")
+            except FileNotFoundError:
+                pass
         else:
             logging.info("Job finished!")
 
 
-tasker()
+# hsubs_bk()
+if __name__ == "__main__":
+    argparser()
