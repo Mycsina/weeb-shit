@@ -28,24 +28,30 @@ logging.basicConfig(
 
 
 class HSubsAPI:
+    """Class which provides methods to find out how many pages and episodes the given HSubs show has."""
+
     def __init__(self, show_id, page):
         """
         Build a HSubsAPI object with the requestlink attribute which points to the HorribleSubs API.
 
         It has the how_many_pages() method which gives back the amount of API pages there are. The how_many_eps() is clear enough.
         Show_id is their internal ID, page is the page number you want to access.
+
+        |Args|
+            - show_id: The HorribleSubs API show_id
+            - page: Which page you want to access
         """
         self.requestlink = f"https://horriblesubs.info/api.php?method=getshows&type=show&showid={show_id}&nextid={page}"
         logging.debug(f"Request link: {self.requestlink}")
 
     def how_many_pages(self):
-        """Call it and it retrieves the amount of pages the api has on said show."""
+        """Retrieves the amount of pages the api has on said show."""
         pages = self.how_many_eps() / 12
         logging.debug(f"Number of pages: {pages}")
         return ceil(pages)
 
     def how_many_eps(self):
-        """Call it and it retrieves the number of episodes released."""
+        """Retrieves the number of episodes released."""
         api_page = r.get(self.requestlink).content
         soupy = BeautifulSoup(api_page, features="lxml").prettify()
         last_episode = re.search(r'id="(\d*)-1080p"', soupy)
@@ -58,6 +64,11 @@ def get_episodes(url, quality="3", save_location=CWD):
     Call the function and give it the HorribleSubs url and the desired quality, both as string.
 
     Quality is from 1 to 3 with 1 being 480p, 2 being 720p and 3 being 1080p.
+
+    |Args|
+        - url: HorribleSubs url
+        - quality: 1 - 480, 2 - 720, 3 - 1080
+        - save_location: String (Default = Current working directory)
     """
     global IND
     global CLEANED_NAME
@@ -93,7 +104,12 @@ def get_episodes(url, quality="3", save_location=CWD):
 
 
 def series_logger(show_id, url):
-    """Given the show_id and it's url, it makes a basic log ({date} - {anime} - {ep})."""
+    """Given the show_id and it's url, it makes a basic log ({date} - {anime} - {ep}).
+
+    |Args|
+        - show_id: HSubs API show_id
+        - url: HSubs page url
+    """
     global CLEANED_NAME
     series_name = re.search(r"/shows/(.*)/", url)
     logging.info(f'{re.sub(r"-", r" ", series_name[1]).title()} is done')
@@ -105,7 +121,12 @@ def series_logger(show_id, url):
 
 
 def organizer(src_path, save_location):
-    """Sorts downloaded HorribleSubs episodes per anime in folders. First argument is where to search in, second is the desired save location."""
+    """Sorts downloaded HorribleSubs episodes per anime in folders. First argument is where to search in, second is the desired save location.
+
+    |Args|
+        - src_path: Path with disorganized files
+        - save_location: Organized files destination folder
+    """
     dir_list = os.listdir(src_path)
     for entry in dir_list:
         if re.search(r"\[HorribleSubs\] (.*) -", entry):
